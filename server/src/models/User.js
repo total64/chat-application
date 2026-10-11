@@ -1,7 +1,14 @@
+
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true
+    },
     name: {
       type: String,
       required: true,
@@ -17,7 +24,7 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: true
+      select: false
     },
     avatarUrl: {
       type: String,
@@ -34,7 +41,8 @@ const userSchema = new mongoose.Schema(
     },
     fcmToken: {
       type: String,
-      default: null
+      default: null,
+      select: false
     }
   },
   {
