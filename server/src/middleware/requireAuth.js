@@ -23,7 +23,7 @@ const requireAuth = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "User account not found"
+        message: "User account is not linked to Firebase"
       });
     }
 

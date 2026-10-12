@@ -5,7 +5,7 @@ const {
   applicationDefault
 } = require("firebase-admin/app");
 
-const getAuth = require("firebase-admin/auth").getAuth;
+const { getAuth } = require("firebase-admin/auth");
 
 const app =
   getApps().length > 0
@@ -14,6 +14,4 @@ const app =
         credential: applicationDefault()
       });
 
-const firebaseAuth = getAuth(app);
-
-module.exports = firebaseAuth;
+module.exports = getAuth(app);
