@@ -3,26 +3,35 @@ const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
 
-const sendMessage = async ({
-  conversationId,
-  senderId,
-  content,
-  type = "text",
-  attachmentUrl = "",
-  attachmentName = ""
-}) => {
+const createError = (message, statusCode) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const sendMessage = async (conversationId, senderId, text) => {
   if (!mongoose.isValidObjectId(conversationId)) {
-    throw new Error("Invalid conversation ID");
+    throw createError("Invalid conversation ID", 400);
   }
 
   if (!mongoose.isValidObjectId(senderId)) {
-    throw new Error("Invalid sender ID");
+    throw createError("Invalid sender ID", 400);
+  }
+
+  if (typeof text !== "string" || !text.trim()) {
+    throw createError("Message text is required", 400);
+  }
+
+  const cleanText = text.trim();
+
+  if (cleanText.length > 5000) {
+    throw createError("Message cannot exceed 5000 characters", 400);
   }
 
   const conversation = await Conversation.findById(conversationId);
 
   if (!conversation) {
-    throw new Error("Conversation not found");
+    throw createError("Conversation not found", 404);
   }
 
   const isParticipant = conversation.participants.some(
@@ -30,30 +39,14 @@ const sendMessage = async ({
   );
 
   if (!isParticipant) {
-    throw new Error("You are not a participant in this conversation");
-  }
-
-  if (!["text", "image", "file"].includes(type)) {
-    throw new Error("Invalid message type");
-  }
-
-  const trimmedContent = typeof content === "string" ? content.trim() : "";
-
-  if (type === "text" && !trimmedContent) {
-    throw new Error("Text messages cannot be empty");
-  }
-
-  if (type !== "text" && !attachmentUrl) {
-    throw new Error("Attachment URL is required");
+    throw createError("You are not a participant in this conversation", 403);
   }
 
   const message = await Message.create({
     conversation: conversationId,
     sender: senderId,
-    content: trimmedContent,
-    type,
-    attachmentUrl,
-    attachmentName
+    text: cleanText,
+    readBy: [senderId]
   });
 
   conversation.lastMessage = message._id;
@@ -62,24 +55,23 @@ const sendMessage = async ({
   return message;
 };
 
-const getConversationMessages = async ({
+const getConversationMessages = async (
   conversationId,
   userId,
-  page = 1,
-  limit = 30
-}) => {
-  if (!mongoose.isValidObjectId(conversationId)) {
-    throw new Error("Invalid conversation ID");
-  }
-
-  if (!mongoose.isValidObjectId(userId)) {
-    throw new Error("Invalid user ID");
+  limit = 30,
+  before
+) => {
+  if (
+    !mongoose.isValidObjectId(conversationId) ||
+    !mongoose.isValidObjectId(userId)
+  ) {
+    throw createError("Invalid conversation or user ID", 400);
   }
 
   const conversation = await Conversation.findById(conversationId);
 
   if (!conversation) {
-    throw new Error("Conversation not found");
+    throw createError("Conversation not found", 404);
   }
 
   const isParticipant = conversation.participants.some(
@@ -87,17 +79,41 @@ const getConversationMessages = async ({
   );
 
   if (!isParticipant) {
-    throw new Error("You are not a participant in this conversation");
+    throw createError("You are not a participant in this conversation", 403);
   }
 
-  const safePage = Math.max(1, Number(page) || 1);
-  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30));
+  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
+  const filter = { conversation: conversationId };
 
-  return Message.find({ conversation: conversationId })
-    .populate("sender", "name avatarUrl")
-    .sort({ createdAt: -1 })
-    .skip((safePage - 1) * safeLimit)
-    .limit(safeLimit);
+  if (before) {
+    if (!mongoose.isValidObjectId(before)) {
+      throw createError("Invalid message cursor", 400);
+    }
+
+    const cursorMessage = await Message.findOne({
+      _id: before,
+      conversation: conversationId
+    }).select("createdAt");
+
+    if (!cursorMessage) {
+      throw createError("Message cursor not found", 404);
+    }
+
+    filter.$or = [
+      { createdAt: { $lt: cursorMessage.createdAt } },
+      {
+        createdAt: cursorMessage.createdAt,
+        _id: { $lt: cursorMessage._id }
+      }
+    ];
+  }
+
+  const messages = await Message.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(safeLimit)
+    .populate("sender", "name avatarUrl");
+
+  return messages.reverse();
 };
 
 module.exports = {

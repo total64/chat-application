@@ -6,10 +6,13 @@ const {
 
 const createMessage = async (req, res, next) => {
   try {
-    const message = await sendMessage({
-      ...req.body,
-      senderId: req.user.id
-    });
+    const { conversationId, text } = req.body;
+
+    const message = await sendMessage(
+      conversationId,
+      req.user.id,
+      text
+    );
 
     res.status(201).json({
       success: true,
@@ -20,17 +23,21 @@ const createMessage = async (req, res, next) => {
   }
 };
 
-const listMessages = async (req, res, next) => {
+const getMessages = async (req, res, next) => {
   try {
-    const messages = await getConversationMessages({
-      conversationId: req.params.conversationId,
-      userId: req.user.id,
-      page: req.query.page,
-      limit: req.query.limit
-    });
+    const { conversationId } = req.params;
+    const { limit, before } = req.query;
+
+    const messages = await getConversationMessages(
+      conversationId,
+      req.user.id,
+      limit,
+      before
+    );
 
     res.json({
       success: true,
+      count: messages.length,
       messages
     });
   } catch (error) {
@@ -40,5 +47,5 @@ const listMessages = async (req, res, next) => {
 
 module.exports = {
   createMessage,
-  listMessages
+  getMessages
 };
