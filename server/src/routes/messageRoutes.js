@@ -1,9 +1,11 @@
-
 const express = require("express");
 const {
   createMessage,
-  listMessages
+  getMessages
 } = require("../controllers/messageController");
+const {
+  markAsRead
+} = require("../controllers/messageReadController");
 const requireAuth = require("../middleware/requireAuth");
 
 const router = express.Router();
@@ -11,6 +13,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.post("/", createMessage);
-router.get("/:conversationId", listMessages);
+router.get("/:conversationId", getMessages);
+router.patch("/:conversationId/read", markAsRead);
 
 module.exports = router;
